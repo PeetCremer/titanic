@@ -2,15 +2,18 @@
 # It is defined by the kaggle/python Docker image: https://github.com/kaggle/docker-python
 # For example, here's several helpful packages to load
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import Iterable  
+
+from data_conversion import load_data_dict
 
 
 # Input data files are available in the read-only "../input/" directory
 # For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
 
-def plot_histogram(x, survived, bins, bin_labels=None):
+def plot_histogram(x, survived, bins, title=None, bin_labels=None):
   if bin_labels is not None:
     assert isinstance(bin_labels, Iterable)
     if isinstance(bins, Iterable):
@@ -31,18 +34,22 @@ def plot_histogram(x, survived, bins, bin_labels=None):
   # print(survived)
   fig = plt.figure()
   ax = fig.add_subplot(111)
+  if title is not None:
+    ax.set_title(title)
   ax.set_ylabel('survival ratio')
-  counts, bins, patches = ax.hist(x, bins=bins, weights=weights, facecolor='blue', edgecolor='gray')
+  _, bins, _ = ax.hist(x, bins=bins, weights=weights, facecolor='blue', edgecolor='gray')
   ax.set_xticks(bins)
   bin_centers = 0.5 * np.diff(bins) + bins[:-1]
 
+
+  counts = hist[0]
   for count, x in zip(counts, bin_centers):  
     # # Label the raw counts
     # ax.annotate("{:.3f}".format(count), xy=(x, 0), xycoords=('data', 'axes fraction'),
     #     xytext=(0, -18), textcoords='offset points', va='top', ha='center')
 
     # Label the percentages among the whole population
-    percent = '%0.0f%%' % (100 * float(count) / counts.sum())
+    percent = '%0.0f%%' % (100 * float(count) / np.sum(counts))
     ax.annotate(percent, xy=(x, 0), xycoords=('data', 'axes fraction'),
         xytext=(0, -32), textcoords='offset points', va='top', ha='center')
 
@@ -56,24 +63,52 @@ def plot_histogram(x, survived, bins, bin_labels=None):
   return fig, ax
 
 def main():
-  data_input_dir = './kaggle/input'
-  data_conversion_dir = 
+  pkl_dir = './data'
+  train_dict = load_data_dict(os.path.join(pkl_dir, "train.pkl"))
 
+  print(np.sum(train_dict["sex"] == 1) / len(train_dict["sex"]))
 
-  train_data_file = os.path.join(data_dir, 'train.csv')
-  train_data_frame = pd.read_csv(train_data_file)
+  # --- Direct data ---
+  # Survivabilty by social class
+  plot_histogram(train_dict["p_class"], train_dict["survived"], 3, title="Survivability by social class", bin_labels=["Upper", "Middle", "Lower"])
+  # Survivability by gender -> Males just die. I expected some bias towards females here, but not that strong. 
+  # plot_histogram(train_dict["sex"], train_dict["survived"], 2, title="Survivability by gender", bin_labels=["Male", "Female"])
+  # Survivability by age -> Pretty uniform, except above 50 years where it drops significantly
+  # plot_histogram(train_dict["age"], train_dict["survived"], [-1.0, 0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 90.0], title="Surivability by age")
 
-  test_data_file = os.path.join(data_dir, "test.csv")
-  test_data_frame = pd.read_csv(test_data_file)
+  # Survivability by fare -> rises from 0.0 to 15.0, probably mostly constant up till 50.0 from there, then somewhat bigger after that. Probably strong correlation with social class
+  # plot_histogram(train_dict["fare"], train_dict["survived"], [0.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0], title="Survivability by fare")
+  # Survivabilty by embarkation -> Some influence, surprisingly
+  # plot_histogram(train_dict["embarked"], train_dict["survived"], [-1.0, 0.0, 0.5, 1.5, 2.5, 3.5], title="Survivability by point of embarkation")
+  # Survivability by number of siblings and spouses -> 1 and 2 have highest chance of survival, from there chances drop fast  
+  # plot_histogram(train_dict["sib_sp"], train_dict["survived"], [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5], title="Survivability by number of siblings and spouses")
+  # Survivability by parch -> 0 seems to be bad, beyond 3 seems to be really bad
+  # plot_histogram(train_dict["parch"], train_dict["survived"], [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5], title="Survivability by parch")
+  # Survivability by cabin -> Having a cabin doubles chance of survival, but it does not seem to matter which type
+  plot_histogram(train_dict["cabin"], train_dict["survived"], [-1.5, -0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5], title="Survivability by cabin")
+  # --- Derived data ---
+  # Survivability of males by age -> Ok for below 10 years, crappy beyond that
+  male_mask = train_dict["sex"] == 1
+  male_survived = train_dict["survived"][male_mask]
+  male_age = train_dict["age"][male_mask]
+  # plot_histogram(male_age, male_survived, [-1.0, 0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 90.0], title="Survivability of males by age")
+  # Survivability of males by parch -> 0 is bad, 1 and 2 is ok, beyond that does not seem to exist
+  male_parch = train_dict["parch"][male_mask]
+  # plot_histogram(male_parch, male_survived, [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5], title="Survivability of males by parch")
+  # Survivability of females by age -> Pretty uniform across all ages
+  female_mask = train_dict["sex"] == 2
+  female_age = train_dict["age"][female_mask]
+  female_survived = train_dict["survived"][female_mask]
+  # plot_histogram(female_age, female_survived, [-1.0, 0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 90.0], title="Survivability of females by age")
+  # Survivability of females by parch -> Uniform up to 3, beyond that seems to be really bad 
+  female_parch = train_dict["parch"][female_mask]
+  # plot_histogram(female_parch, female_survived, [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5], title="Survivability of females by parch")
 
-  # print(train_data_frame.columns)
-
-  # numpy_stuff = train_data_frame.get('Sex').to_numpy()
-  train_data_extracted = extract_data_from_data_frame(train_data_frame)
-  survived, p_class, sex, age, sib_sp, parch, ticket_number, fare, cabin, embarked = train_data_extracted
-  plot_histogram(p_class, survived, 3, bin_labels=["Upper", "Middle", "Lower"])
-  
+  # Plot
   plt.show()
+
+
+
   
 
   # test_data_extracted = extract_data_from_data_frame(test_data_frame)
