@@ -1,2 +1,2 @@
 # titanic
-My take on the Kaggle titanic challenge
+My take on the Kaggle titanic Data-Science challenge
