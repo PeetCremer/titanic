@@ -9,6 +9,9 @@ from collections import Iterable
 
 from data_conversion import load_data_dict
 
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold
+
 
 # Input data files are available in the read-only "../input/" directory
 # For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
@@ -64,10 +67,8 @@ def plot_histogram(x, survived, bins, title=None, bin_labels=None):
 
 def main():
   pkl_dir = './data'
-  train_dict = load_data_dict(os.path.join(pkl_dir, "train.pkl"))
 
-  print(np.sum(train_dict["sex"] == 1) / len(train_dict["sex"]))
-
+  """
   # --- Direct data ---
   # Survivabilty by social class
   plot_histogram(train_dict["p_class"], train_dict["survived"], 3, title="Survivability by social class", bin_labels=["Upper", "Middle", "Lower"])
@@ -106,13 +107,93 @@ def main():
 
   # Plot
   plt.show()
+  """
+
+  # Create a train dataset by concatenating all the features that have been decided to be useful above
+  def get_dataset_array(data_dict, keys):
+    return np.column_stack([data_dict[key] for key in keys])
+
+  # Get train dataset
+  train_dict = load_data_dict(os.path.join(pkl_dir, "train.pkl"))
+  X = get_dataset_array(train_dict, [
+    "sex",
+    "age",
+    "p_class",
+    "fare",   # TODO probably strong correlation with the above, use either one but not both?
+    "cabin",   # TODO probably strong correlation with the above, use either one but not both?
+    "embarked",
+    "sib_sp", 
+    "parch"
+  ])  
+  y = train_dict["survived"]
+
+  # Make a k-fold train / dev set-split
+  # Use the same fraction of survivors in each set
+  stratified_k_fold = StratifiedKFold(n_splits=5, shuffle=True)
+
+  # Initialize classifier
+  def get_classifier():
+    return RandomForestClassifier(
+      n_estimators=100, 
+      criterion='gini', 
+      max_depth=None, 
+      min_samples_split=2, 
+      min_samples_leaf=1, 
+      min_weight_fraction_leaf=0.0, 
+      max_features='auto', 
+      max_leaf_nodes=None, 
+      min_impurity_decrease=0.0, 
+      min_impurity_split=None, 
+      bootstrap=True, 
+      oob_score=False, 
+      n_jobs=None, 
+      random_state=None, 
+      verbose=0, 
+      warm_start=False, 
+      class_weight=None, 
+      ccp_alpha=0.0, 
+      max_samples=None
+    )
+
+  # Repeatedly fit the classifier to the splits
+  # Average results of the splits
+  num_eval_repetitions = 10
+  scores = []
+  for eval_rep_idx in range(num_eval_repetitions):
+    for train_indices, test_indices in stratified_k_fold.split(X, y):
+      X_train, y_train = X[train_indices], y[train_indices]
+      X_test, y_test = X[test_indices], y[test_indices]
+
+      # Get a fresh classifier (to prevent correlation between different splits)
+      classifier = get_classifier()
+      # Fit classifier to train data
+      classifier.fit(X_train, y_train)
+
+      # Evaluate score with test data
+      score = classifier.score(X_test, y_test)
+      scores.append(score)
+
+  print("# SCORE: {} +- {}".format(np.mean(scores), np.std(scores)))
 
 
+  # Fit classifier to training data
 
-  
-
-  # test_data_extracted = extract_data_from_data_frame(test_data_frame)
-
+  """
+  # Get submission dataset
+  sub_dict = load_data_dict(os.path.join(pkl_dir, "test.pkl"))
+  X_sub = get_dataset_array(sub_dict, [
+    "sex",
+    "age",
+    "p_class",
+    "fare",   # TODO probably strong correlation with the above, use either one but not both?
+    "cabin",   # TODO probably strong correlation with the above, use either one but not both?
+    "embarked",
+    "sib_sp", 
+    "parch"
+  ])
+  # Predict on the test dataset   
+  y_sub = classifier.predict(X_sub)
+  """
 
 
 if __name__ == "__main__":
