@@ -119,10 +119,10 @@ def main():
     "sex",
     "age",
     "p_class",
-    "fare",   # TODO probably strong correlation with the above, use either one but not both?
-    "cabin",   # TODO probably strong correlation with the above, use either one but not both?
-    "embarked",
-    "sib_sp", 
+    "fare",   # TODO probably strong correlation with the above, use either one but not both / all three?
+    # "cabin",   # TODO probably strong correlation with the above, use either one but not both / all three?
+    # "embarked",
+    # "sib_sp", 
     "parch"
   ])  
   y = train_dict["survived"]
@@ -159,7 +159,7 @@ def main():
   # Average results of the splits
   num_eval_repetitions = 10
   scores = []
-  for eval_rep_idx in range(num_eval_repetitions):
+  for _ in range(num_eval_repetitions):
     for train_indices, test_indices in stratified_k_fold.split(X, y):
       X_train, y_train = X[train_indices], y[train_indices]
       X_test, y_test = X[test_indices], y[test_indices]
